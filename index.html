@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design review poll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F1F2EE;
+    --card: #FFFFFF;
+    --ink: #1B1E23;
+    --muted: #6C7078;
+    --line: #E0E1DA;
+    --accent: #2743E3;
+    --accent-soft: #E7EAFD;
+    --danger: #B3261E;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 28px 20px 80px; }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin: 8px 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+  .pad { padding: 20px; }
+  .field-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  input[type="text"], textarea {
+    width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); font-size: 14px; font-family: inherit;
+  }
+  textarea { resize: vertical; }
+  input::placeholder, textarea::placeholder { color: #A5A8B0; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn {
+    padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;
+    font-family: inherit; border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  .btn.small { padding: 6px 12px; font-size: 13px; }
+  .btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .btn.danger { border-color: var(--danger); color: var(--danger); background: var(--card); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .tab { padding: 7px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+    font-family: inherit; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
+  .tab.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .error { color: var(--danger); font-size: 13px; margin-top: 14px; }
+  .meta { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .grid { display: grid; gap: 12px; }
+  .item-list { display: grid; gap: 8px; margin-top: 10px; }
+  .tile {
+    width: 44px; height: 44px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 16px;
+    font-family: inherit; border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  .tile.filled { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .tile-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .vote-card { display: flex; flex-direction: column; overflow: hidden; }
+  .img-wrap { flex-shrink: 0; width: 100%; }
+  .img-wrap img { width: 100%; height: 100%; min-height: 160px; object-fit: cover; display: block; }
+  @media (min-width: 640px) {
+    .vote-card { flex-direction: row; }
+    .img-wrap { width: 224px; }
+  }
+  .ph-big {
+    width: 100%; height: 100%; min-height: 160px; background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 40px;
+  }
+  .ph-thumb {
+    border-radius: 6px; background: var(--accent-soft); color: var(--accent); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-weight: 700;
+  }
+  img.thumb { border-radius: 6px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
+  a { color: var(--accent); }
+  .dist { display: flex; gap: 6px; margin-top: 14px; align-items: flex-end; }
+  .dist .col { flex: 1; text-align: center; }
+  .dist .bar { border-radius: 3px; }
+  .dist .lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .comments { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 8px; }
+  .comment { font-size: 13.5px; line-height: 1.5; }
+  .rank { font-size: 22px; font-weight: 800; width: 34px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+<input type="file" id="file-input" accept=".json,application/json" multiple style="display:none">
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "design-review-poll-v1";
+
+  var state = {
+    poll: null,
+    responses: [],
+    view: "build",       // build | vote | results
+    error: "",
+    draftTitle: "",
+    draftItems: [],
+    itemFields: { name: "", url: "", image: "" },
+    reviewer: "",
+    ratings: {},
+    comments: {},
+    submitted: false,
+    confirmNew: false,
+    importMsg: ""
+  };
+
+  /* ---------- helpers ---------- */
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function safeUrl(u) {
+    if (!u) return "";
+    return /^https?:\/\//i.test(u) ? u : "https://" + u;
+  }
+
+  function initialOf(name) {
+    var t = (name || "?").trim();
+    return t ? t.charAt(0).toUpperCase() : "?";
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var data = JSON.parse(raw);
+        if (data && data.poll) {
+          state.poll = data.poll;
+          state.responses = data.responses || [];
+          state.view = "vote";
+        }
+      }
+    } catch (e) { /* start fresh */ }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ poll: state.poll, responses: state.responses }));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function statsFor(itemId) {
+    var vals = [];
+    state.responses.forEach(function (r) {
+      var v = r.ratings && r.ratings[itemId];
+      if (typeof v === "number") vals.push(v);
+    });
+    var avg = null;
+    if (vals.length) {
+      var sum = 0;
+      vals.forEach(function (v) { sum += v; });
+      avg = sum / vals.length;
+    }
+    var dist = [1, 2, 3, 4, 5].map(function (n) {
+      return vals.filter(function (v) { return v === n; }).length;
+    });
+    var comments = [];
+    state.responses.forEach(function (r) {
+      var t = r.comments && r.comments[itemId];
+      if (t) comments.push({ reviewer: r.reviewer, text: t });
+    });
+    return { avg: avg, count: vals.length, dist: dist, comments: comments };
+  }
+
+  /* ---------- data file export / import ---------- */
+
+  function pollIdOf(p) {
+    return p.id || ("p" + (p.createdAt || 0));
+  }
+
+  function slug(s) {
+    var t = String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return t || "design-review-poll";
+  }
+
+  function exportData() {
+    if (!state.poll) return;
+    var data = {
+      format: "design-review-poll",
+      version: 1,
+      exportedAt: Date.now(),
+      poll: state.poll,
+      responses: state.responses
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = slug(state.poll.title) + "-data.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function mergeImport(d, s) {
+    if (!d || !d.poll || !Array.isArray(d.poll.items)) { s.invalid++; return; }
+    if (!state.poll) {
+      state.poll = d.poll;
+      state.responses = [];
+      s.adopted = true;
+    } else if (pollIdOf(d.poll) !== pollIdOf(state.poll)) {
+      s.otherPoll++;
+      return;
+    }
+    var ids = {};
+    state.responses.forEach(function (r) { if (r && r.id) ids[r.id] = true; });
+    (Array.isArray(d.responses) ? d.responses : []).forEach(function (r) {
+      if (r && r.id && r.ratings && !ids[r.id]) {
+        ids[r.id] = true;
+        state.responses.push(r);
+        s.added++;
+      } else if (r && r.id) {
+        s.dup++;
+      }
+    });
+  }
+
+  function finishImport(s) {
+    save();
+    var parts = [];
+    if (s.adopted) parts.push("poll loaded");
+    parts.push(s.added + " new review" + (s.added === 1 ? "" : "s") + " added");
+    if (s.dup) parts.push(s.dup + " duplicate" + (s.dup === 1 ? "" : "s") + " skipped");
+    if (s.otherPoll) parts.push(s.otherPoll + " file" + (s.otherPoll === 1 ? "" : "s") + " from a different poll skipped");
+    if (s.invalid) parts.push(s.invalid + " unreadable file" + (s.invalid === 1 ? "" : "s") + " skipped");
+    state.importMsg = "Import finished: " + parts.join(", ") + ".";
+    state.error = "";
+    state.view = state.poll ? "results" : "build";
+    render();
+  }
+
+  function importFiles(files) {
+    var summary = { added: 0, dup: 0, otherPoll: 0, invalid: 0, adopted: false };
+    var pending = files.length;
+    if (!pending) return;
+    files.forEach(function (f) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          mergeImport(JSON.parse(reader.result), summary);
+        } catch (e) {
+          summary.invalid++;
+        }
+        pending--;
+        if (pending === 0) finishImport(summary);
+      };
+      reader.onerror = function () {
+        summary.invalid++;
+        pending--;
+        if (pending === 0) finishImport(summary);
+      };
+      reader.readAsText(f);
+    });
+  }
+
+  function tryRemoteData() {
+    fetch("poll-data.json", { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("no data file");
+      return res.json();
+    }).then(function (d) {
+      if (!state.poll && d && d.poll && Array.isArray(d.poll.items)) {
+        state.poll = d.poll;
+        state.responses = Array.isArray(d.responses) ? d.responses : [];
+        state.view = "vote";
+        save();
+        render();
+      }
+    }).catch(function () { /* no poll-data.json in the repo */ });
+  }
+
+  /* ---------- image rendering ---------- */
+
+  function thumbHtml(src, name, size) {
+    if (!src) {
+      return '<div class="ph-thumb" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size / 2.8) + 'px">' + esc(initialOf(name)) + "</div>";
+    }
+    return '<img class="thumb" data-fallback data-size="' + size + '" data-initial="' + esc(initialOf(name)) + '" src="' + esc(src) + '" alt="' + esc(name) + '" style="width:' + size + 'px;height:' + size + 'px">';
+  }
+
+  function bigImageHtml(src, name) {
+    if (!src) {
+      return '<div class="ph-big">' + esc(initialOf(name)) + "</div>";
+    }
+    return '<img data-fallback data-big="1" data-initial="' + esc(initialOf(name)) + '" src="' + esc(src) + '" alt="' + esc(name) + '">';
+  }
+
+  function attachImageFallbacks(root) {
+    root.querySelectorAll("img[data-fallback]").forEach(function (img) {
+      img.addEventListener("error", function () {
+        var d = document.createElement("div");
+        if (img.dataset.big) {
+          d.className = "ph-big";
+        } else {
+          d.className = "ph-thumb";
+          var s = parseInt(img.dataset.size || "48", 10);
+          d.style.width = s + "px";
+          d.style.height = s + "px";
+          d.style.fontSize = Math.round(s / 2.8) + "px";
+        }
+        d.textContent = img.dataset.initial || "?";
+        img.replaceWith(d);
+      });
+    });
+  }
+
+  /* ---------- views ---------- */
+
+  function buildView() {
+    var itemsHtml = "";
+    if (state.draftItems.length) {
+      itemsHtml += '<div style="margin-top:20px"><div style="font-size:14px;font-weight:700;margin-bottom:2px">In this poll (' + state.draftItems.length + ')</div><div class="item-list">';
+      state.draftItems.forEach(function (it) {
+        itemsHtml +=
+          '<div class="card row" style="padding:10px">' +
+            thumbHtml(it.image, it.name, 48) +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-weight:600;font-size:14px">' + esc(it.name) + "</div>" +
+              '<div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+                (it.url ? esc(it.url) : "No link added") +
+              "</div>" +
+            "</div>" +
+            '<button class="btn small danger" data-remove="' + it.id + '">Remove</button>' +
+          "</div>";
+      });
+      itemsHtml += "</div></div>";
+    }
+
+    return (
+      "<h1>Set up a design review poll</h1>" +
+      '<p class="sub">Add each website design with its hosted link and a preview image, then launch. Votes are stored in this browser.</p>' +
+      '<div class="card pad" style="margin-bottom:20px">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Already have a poll file?</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Import a data file to load the poll and any collected reviews instead of building one from scratch.</div>' +
+        '<button class="btn" id="import-btn">Import data file</button>' +
+        (state.importMsg ? '<div style="font-size:13px;margin-top:10px">' + esc(state.importMsg) + "</div>" : "") +
+      "</div>" +
+      '<div class="card pad" style="margin-bottom:20px">' +
+        '<div class="field-label">Poll title</div>' +
+        '<input type="text" id="f-title" value="' + esc(state.draftTitle) + '" placeholder="Homepage redesign, round 2">' +
+      "</div>" +
+      '<div class="card pad">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:14px">Add a design</div>' +
+        '<div class="grid">' +
+          '<div><div class="field-label">Design name</div><input type="text" id="f-name" value="' + esc(state.itemFields.name) + '" placeholder="Concept A, bold hero"></div>' +
+          '<div><div class="field-label">Hosted link</div><input type="text" id="f-url" value="' + esc(state.itemFields.url) + '" placeholder="https://staging.example.com/concept-a"></div>' +
+          '<div><div class="field-label">Image URL</div><input type="text" id="f-image" value="' + esc(state.itemFields.image) + '" placeholder="https://example.com/screenshot.png"></div>' +
+        "</div>" +
+        '<div style="margin-top:14px"><button class="btn" id="add-item">Add design</button></div>' +
+      "</div>" +
+      itemsHtml +
+      (state.error ? '<div class="error">' + esc(state.error) + "</div>" : "") +
+      '<div style="margin-top:24px;display:flex;gap:10px;align-items:center">' +
+        '<button class="btn primary" id="launch">Launch poll</button>' +
+        (state.poll ? '<button class="btn" id="back-to-poll">Back to current poll</button>' : "") +
+      "</div>" +
+      (state.poll ? '<div style="font-size:12px;color:var(--muted);margin-top:10px">Launching replaces the current poll and clears its results.</div>' : "")
+    );
+  }
+
+  function headerHtml() {
+    var n = state.responses.length;
+    return (
+      '<div style="margin-bottom:24px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+          '<h1 style="margin:0;font-size:26px">' + esc(state.poll.title) + "</h1>" +
+          '<div style="display:flex;gap:8px">' +
+            '<button class="tab' + (state.view === "vote" ? " active" : "") + '" data-tab="vote">Vote</button>' +
+            '<button class="tab' + (state.view === "results" ? " active" : "") + '" data-tab="results">Results</button>' +
+          "</div>" +
+        "</div>" +
+        '<div class="meta">' + state.poll.items.length + " designs, " + n + " review" + (n === 1 ? "" : "s") + " in this browser</div>" +
+      "</div>"
+    );
+  }
+
+  function tilesHtml(itemId) {
+    var v = state.ratings[itemId];
+    var out = '<div style="display:flex;gap:8px">';
+    for (var n = 1; n <= 5; n++) {
+      var filled = typeof v === "number" && n <= v;
+      out += '<button class="tile' + (filled ? " filled" : "") + '" data-item="' + itemId + '" data-score="' + n + '" aria-label="Score ' + n + '">' + n + "</button>";
+    }
+    out += '</div><div class="tile-hint">1 = needs work, 5 = ship it</div>';
+    return out;
+  }
+
+  function voteView() {
+    var cards = "";
+    state.poll.items.forEach(function (it) {
+      cards +=
+        '<div class="card vote-card">' +
+          '<div class="img-wrap">' + bigImageHtml(it.image, it.name) + "</div>" +
+          '<div style="padding:18px;flex:1">' +
+            '<div style="font-size:17px;font-weight:700">' + esc(it.name) + "</div>" +
+            (it.url ? '<a href="' + esc(safeUrl(it.url)) + '" target="_blank" rel="noopener noreferrer" style="font-size:13px">Open the live design</a>' : "") +
+            '<div style="margin-top:14px">' + tilesHtml(it.id) + "</div>" +
+            '<textarea rows="2" data-comment="' + it.id + '" placeholder="What works, what doesn\'t?" style="margin-top:14px">' + esc(state.comments[it.id] || "") + "</textarea>" +
+          "</div>" +
+        "</div>";
+    });
+
+    return (
+      headerHtml() +
+      '<div class="card" style="padding:16px;margin-bottom:20px">' +
+        '<div class="field-label">Your name (optional)</div>' +
+        '<input type="text" id="f-reviewer" value="' + esc(state.reviewer) + '" placeholder="Shown next to your comments">' +
+      "</div>" +
+      '<div style="display:grid;gap:16px">' + cards + "</div>" +
+      (state.error ? '<div class="error">' + esc(state.error) + "</div>" : "") +
+      '<div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        '<button class="btn primary" id="submit-review">Submit review</button>' +
+        (state.submitted ? '<span style="font-size:13px;color:var(--muted)">Review submitted. You can submit another if needed.</span>' : "") +
+      "</div>"
+    );
+  }
+
+  function resultsView() {
+    var body = "";
+    if (!state.responses.length) {
+      body = '<div class="card" style="padding:32px;text-align:center;color:var(--muted);font-size:14px">No reviews yet. Switch to Vote and be the first to score the designs.</div>';
+    } else {
+      var ranked = state.poll.items.map(function (it) {
+        return { item: it, stats: statsFor(it.id) };
+      }).sort(function (a, b) {
+        return (b.stats.avg == null ? -1 : b.stats.avg) - (a.stats.avg == null ? -1 : a.stats.avg);
+      });
+
+      var maxDist = 1;
+      ranked.forEach(function (r) {
+        r.stats.dist.forEach(function (n) { if (n > maxDist) maxDist = n; });
+      });
+
+      body = '<div style="display:grid;gap:16px">';
+      ranked.forEach(function (r, idx) {
+        var it = r.item, st = r.stats;
+        var bars = '<div class="dist">';
+        st.dist.forEach(function (n, i) {
+          var h = Math.max(4, Math.round((n / maxDist) * 32));
+          var op = n > 0 ? (0.55 + 0.45 * (n / maxDist)) : 1;
+          bars +=
+            '<div class="col">' +
+              '<div class="bar" style="height:' + h + "px;background:" + (n > 0 ? "var(--accent)" : "var(--line)") + ";opacity:" + op.toFixed(2) + '"></div>' +
+              '<div class="lbl">' + (i + 1) + "</div>" +
+            "</div>";
+        });
+        bars += "</div>";
+
+        var commentsHtml = "";
+        if (st.comments.length) {
+          commentsHtml = '<div class="comments">';
+          st.comments.forEach(function (c) {
+            commentsHtml += '<div class="comment"><span style="font-weight:700">' + esc(c.reviewer || "Anonymous") + ": </span>" + esc(c.text) + "</div>";
+          });
+          commentsHtml += "</div>";
+        }
+
+        body +=
+          '<div class="card" style="padding:18px">' +
+            '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">' +
+              '<div class="rank" style="color:' + (idx === 0 ? "var(--accent)" : "var(--muted)") + '">' + (idx + 1) + "</div>" +
+              thumbHtml(it.image, it.name, 56) +
+              '<div style="flex:1;min-width:200px">' +
+                '<div style="font-size:16px;font-weight:700">' + esc(it.name) + "</div>" +
+                (it.url ? '<a href="' + esc(safeUrl(it.url)) + '" target="_blank" rel="noopener noreferrer" style="font-size:13px">Open the live design</a>' : "") +
+              "</div>" +
+              '<div style="text-align:right">' +
+                '<div style="font-size:26px;font-weight:800">' + (st.avg != null ? st.avg.toFixed(1) : "–") + '<span style="font-size:14px;font-weight:500;color:var(--muted)"> / 5</span></div>' +
+                '<div style="font-size:12px;color:var(--muted)">' + st.count + " rating" + (st.count === 1 ? "" : "s") + "</div>" +
+              "</div>" +
+            "</div>" +
+            bars +
+            commentsHtml +
+          "</div>";
+      });
+      body += "</div>";
+    }
+
+    var newPollControls;
+    if (!state.confirmNew) {
+      newPollControls = '<button class="btn small" id="new-poll">Start a new poll</button>';
+    } else {
+      newPollControls =
+        '<span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          '<span style="font-size:13px;color:var(--danger)">This replaces the poll and clears results.</span>' +
+          '<button class="btn small danger" id="new-poll-confirm">Confirm</button>' +
+          '<button class="btn small" id="new-poll-cancel">Cancel</button>' +
+        "</span>";
+    }
+
+    var dataCard =
+      '<div class="card pad" style="margin-top:20px">' +
+        '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Data file</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Download this browser\'s poll and reviews as a file to share, or import reviewers\' files to merge their votes into combined results.</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+          '<button class="btn" id="export-btn">Download data file</button>' +
+          '<button class="btn" id="import-btn">Import data files</button>' +
+        "</div>" +
+        (state.importMsg ? '<div style="font-size:13px;margin-top:10px">' + esc(state.importMsg) + "</div>" : "") +
+      "</div>";
+
+    return (
+      headerHtml() +
+      body +
+      dataCard +
+      '<div style="margin-top:28px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' + newPollControls + "</div>"
+    );
+  }
+
+  /* ---------- render + events ---------- */
+
+  var app = document.getElementById("app");
+
+  function render() {
+    if (state.view === "build" || !state.poll) {
+      app.innerHTML = buildView();
+    } else if (state.view === "vote") {
+      app.innerHTML = voteView();
+    } else {
+      app.innerHTML = resultsView();
+    }
+    bind();
+    attachImageFallbacks(app);
+  }
+
+  function on(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  }
+
+  function syncInput(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("input", function () { fn(el.value); });
+  }
+
+  function bind() {
+    // build view
+    syncInput("f-title", function (v) { state.draftTitle = v; });
+    syncInput("f-name", function (v) { state.itemFields.name = v; });
+    syncInput("f-url", function (v) { state.itemFields.url = v; });
+    syncInput("f-image", function (v) { state.itemFields.image = v; });
+
+    on("add-item", function () {
+      state.error = "";
+      if (!state.itemFields.name.trim()) {
+        state.error = "Give the design a name before adding it.";
+        render();
+        return;
+      }
+      state.draftItems.push({
+        id: uid(),
+        name: state.itemFields.name.trim(),
+        url: state.itemFields.url.trim(),
+        image: state.itemFields.image.trim()
+      });
+      state.itemFields = { name: "", url: "", image: "" };
+      render();
+    });
+
+    app.querySelectorAll("[data-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-remove");
+        state.draftItems = state.draftItems.filter(function (i) { return i.id !== id; });
+        render();
+      });
+    });
+
+    on("launch", function () {
+      state.error = "";
+      if (!state.draftItems.length) {
+        state.error = "Add at least one design to launch the poll.";
+        render();
+        return;
+      }
+      state.poll = {
+        id: uid(),
+        title: state.draftTitle.trim() || "Website design review",
+        items: state.draftItems,
+        createdAt: Date.now()
+      };
+      state.responses = [];
+      state.ratings = {};
+      state.comments = {};
+      state.submitted = false;
+      if (!save()) {
+        state.poll = null;
+        state.error = "Couldn't save the poll in this browser. Check that site data isn't blocked.";
+        render();
+        return;
+      }
+      state.view = "vote";
+      render();
+    });
+
+    on("back-to-poll", function () {
+      state.error = "";
+      state.view = "vote";
+      render();
+    });
+
+    // tabs
+    app.querySelectorAll("[data-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.error = "";
+        state.importMsg = "";
+        state.view = btn.getAttribute("data-tab");
+        render();
+      });
+    });
+
+    // vote view
+    syncInput("f-reviewer", function (v) { state.reviewer = v; });
+
+    app.querySelectorAll("textarea[data-comment]").forEach(function (ta) {
+      ta.addEventListener("input", function () {
+        state.comments[ta.getAttribute("data-comment")] = ta.value;
+      });
+    });
+
+    app.querySelectorAll(".tile").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var itemId = btn.getAttribute("data-item");
+        var score = parseInt(btn.getAttribute("data-score"), 10);
+        if (state.ratings[itemId] === score) {
+          delete state.ratings[itemId];
+        } else {
+          state.ratings[itemId] = score;
+        }
+        render();
+      });
+    });
+
+    on("submit-review", function () {
+      state.error = "";
+      var rated = Object.keys(state.ratings).filter(function (k) {
+        return typeof state.ratings[k] === "number";
+      });
+      if (!rated.length) {
+        state.error = "Score at least one design before submitting.";
+        render();
+        return;
+      }
+      var cleanRatings = {};
+      rated.forEach(function (k) { cleanRatings[k] = state.ratings[k]; });
+      var cleanComments = {};
+      Object.keys(state.comments).forEach(function (k) {
+        var t = (state.comments[k] || "").trim();
+        if (t) cleanComments[k] = t;
+      });
+      state.responses.push({
+        id: uid(),
+        reviewer: state.reviewer.trim(),
+        ratings: cleanRatings,
+        comments: cleanComments,
+        at: Date.now()
+      });
+      if (!save()) {
+        state.responses.pop();
+        state.error = "Couldn't save your review in this browser.";
+        render();
+        return;
+      }
+      state.ratings = {};
+      state.comments = {};
+      state.submitted = true;
+      state.view = "results";
+      render();
+    });
+
+    // data file
+    on("export-btn", exportData);
+    on("import-btn", function () {
+      var fi = document.getElementById("file-input");
+      if (fi) fi.click();
+    });
+
+    // results view
+    on("new-poll", function () { state.confirmNew = true; render(); });
+    on("new-poll-cancel", function () { state.confirmNew = false; render(); });
+    on("new-poll-confirm", function () {
+      state.confirmNew = false;
+      state.draftTitle = "";
+      state.draftItems = [];
+      state.itemFields = { name: "", url: "", image: "" };
+      state.ratings = {};
+      state.comments = {};
+      state.submitted = false;
+      state.error = "";
+      state.view = "build";
+      render();
+    });
+  }
+
+  var fileInput = document.getElementById("file-input");
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files && fileInput.files.length) {
+      importFiles(Array.prototype.slice.call(fileInput.files));
+    }
+    fileInput.value = "";
+  });
+
+  load();
+  render();
+  if (!state.poll) tryRemoteData();
+})();
+</script>
+</body>
+</html>
