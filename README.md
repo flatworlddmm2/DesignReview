@@ -59,3 +59,9 @@ Who reviewed what, when, with what score and comment:
 - **Without the relay:** the Results tab has a "Download results (CSV)" button that produces the same report from whatever reviews are loaded; commit it to the repo manually if you want it there.
 
 Reviewers who leave the name field blank appear as "Anonymous" — the poll never collects identity on its own. The raw machine-readable record of the same information lives in `poll-data.json`.
+
+## Counting anonymous voters
+
+Each browser that opens the poll is assigned a random voter ID, stored in that browser and attached to every review it submits. This makes anonymous activity countable and traceable without collecting any identity: reviews with no name display as "Anonymous #xxxxxx" (the ID's last six characters), the header shows how many distinct voters the reviews came from, and both CSV reports include the full ID in a Voter ID column, so repeat submissions from the same browser are easy to spot.
+
+Its limits: the ID identifies a browser, not a person. The same person on a second device, in a private window, or after clearing site data gets a new ID, and two people sharing a browser share one. Treat it as a practical counter, not a security measure.
