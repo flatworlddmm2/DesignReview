@@ -21,5 +21,17 @@
     ],
     "createdAt": 1788946288462
   },
-  "responses": []
+  "responses": [
+    {
+      "id": "mtu6p6djic8ve",
+      "voter": "mtu6p6dkwx62j",
+      "reviewer": "",
+      "ratings": {
+        "mttwe80oyb34d": 3,
+        "mttwfayounwa7": 4
+      },
+      "comments": {},
+      "at": 1788963537362
+    }
+  ]
 }
