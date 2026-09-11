@@ -21,42 +21,5 @@
     ],
     "createdAt": 1788946288462
   },
-  "responses": [
-    {
-      "id": "mtu71n0rihul6",
-      "voter": "mtu71n0r0eioc",
-      "reviewer": "Purnendu",
-      "ratings": {
-        "mttwe80oyb34d": 3,
-        "mttwfayounwa7": 5
-      },
-      "comments": {},
-      "at": 1788964117443
-    },
-    {
-      "id": "mtualisjr88r5",
-      "voter": "mtualiskvjx33",
-      "reviewer": "Anand Mathew",
-      "ratings": {
-        "mttwfayounwa7": 5,
-        "mttwe80oyb34d": 4
-      },
-      "comments": {
-        "mttwfayounwa7": "works for a BPO + automation company",
-        "mttwe80oyb34d": "too much Ai style, which ECPL is not"
-      },
-      "at": 1788970084874
-    },
-    {
-      "id": "mtv6vdr81fhz9",
-      "voter": "mtu5cx5o3oqje",
-      "reviewer": "",
-      "ratings": {
-        "mttwe80oyb34d": 4,
-        "mttwfayounwa7": 5
-      },
-      "comments": {},
-      "at": 1789024292354
-    }
-  ]
+  "responses": []
 }
