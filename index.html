@@ -118,6 +118,7 @@
     confirmNew: false,
     confirmFlush: false,
     confirmArchive: false,
+    confirmLaunch: false,
     adminKey: "",
     archives: null,
     archiveData: null,
@@ -170,7 +171,7 @@
       '<div style="display:flex;align-items:center;gap:12px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:22px">' +
         '<img src="' + LOGO + '" alt="IceBerg logo" style="width:42px;height:42px;flex-shrink:0">' +
         "<div>" +
-          '<div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">Online Design Review Platform</div>' +
+          '<div style="font-size:17px;font-weight:800;letter-spacing:-0.01em">IceBerg Online Design Review Platform</div>' +
           '<div style="font-size:12px;color:var(--muted)">V1.0</div>' +
         "</div>" +
       "</div>"
@@ -546,11 +547,18 @@
       "</div>" +
       itemsHtml +
       (state.error ? '<div class="error">' + esc(state.error) + "</div>" : "") +
-      '<div style="margin-top:24px;display:flex;gap:10px;align-items:center">' +
-        '<button class="btn primary" id="launch">Launch poll</button>' +
-        (state.poll ? '<button class="btn" id="back-to-poll">Back to current poll</button>' : "") +
-      "</div>" +
-      (state.poll ? '<div style="font-size:12px;color:var(--muted);margin-top:10px">Launching replaces the current poll and clears its results.</div>' : "")
+      (state.confirmLaunch && remoteEnabled()
+        ? '<div style="margin-top:24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+            '<span style="font-size:13px">Publishing makes this the live poll for everyone' + (state.poll ? " and replaces the current one" : "") + ".</span>" +
+            '<input type="text" id="f-adminkey" value="' + esc(state.adminKey) + '" placeholder="Admin key" style="width:170px">' +
+            '<button class="btn primary" id="launch-confirm">Publish poll</button>' +
+            '<button class="btn" id="launch-cancel">Cancel</button>' +
+          "</div>"
+        : '<div style="margin-top:24px;display:flex;gap:10px;align-items:center">' +
+            '<button class="btn primary" id="launch">' + (remoteEnabled() ? "Publish poll" : "Launch poll") + "</button>" +
+            (state.poll ? '<button class="btn" id="back-to-poll">Back to current poll</button>' : "") +
+          "</div>") +
+      (state.poll && !state.confirmLaunch ? '<div style="font-size:12px;color:var(--muted);margin-top:10px">' + (remoteEnabled() ? "Publishing replaces the live poll and clears its reviews. Archive the current poll first if you want to keep them." : "Launching replaces the current poll and clears its results.") + "</div>" : "")
     );
   }
 
@@ -882,8 +890,14 @@
 
     on("launch", function () {
       state.error = "";
+      state.importMsg = "";
       if (!state.draftItems.length) {
         state.error = "Add at least one design to launch the poll.";
+        render();
+        return;
+      }
+      if (remoteEnabled()) {
+        state.confirmLaunch = true;
         render();
         return;
       }
@@ -907,8 +921,60 @@
       render();
     });
 
+    on("launch-cancel", function () { state.confirmLaunch = false; render(); });
+
+    on("launch-confirm", function () {
+      state.error = "";
+      if (!state.adminKey.trim()) {
+        state.error = "Enter the admin key to publish.";
+        render();
+        return;
+      }
+      var newPoll = {
+        id: uid(),
+        title: state.draftTitle.trim() || "Website design review",
+        items: state.draftItems,
+        createdAt: Date.now()
+      };
+      var lbtn = document.getElementById("launch-confirm");
+      if (lbtn) { lbtn.disabled = true; lbtn.textContent = "Publishing…"; }
+      fetch(RELAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "publish", adminKey: state.adminKey.trim(), poll: newPoll })
+      }).then(function (res) {
+        return res.text().then(function (t) {
+          var d = null;
+          try { d = JSON.parse(t); } catch (e) { /* not JSON */ }
+          if (d === null) {
+            throw new Error("RELAY_URL isn't answering with poll data (HTTP " + res.status + ")");
+          }
+          return { ok: res.ok, d: d };
+        });
+      }).then(function (out) {
+        if (!out.ok) throw new Error((out.d && out.d.error) || "publish failed");
+        state.poll = (out.d && out.d.poll) || newPoll;
+        state.responses = [];
+        save();
+        state.confirmLaunch = false;
+        state.adminKey = "";
+        state.draftTitle = "";
+        state.draftItems = [];
+        state.ratings = {};
+        state.comments = {};
+        state.submitted = false;
+        state.view = "vote";
+        render();
+      }).catch(function (e) {
+        state.confirmLaunch = false;
+        state.error = "Publish failed" + (e && e.message ? " (" + e.message + ")" : "") + ".";
+        render();
+      });
+    });
+
     on("back-to-poll", function () {
       state.error = "";
+      state.confirmLaunch = false;
       state.view = "vote";
       render();
     });
